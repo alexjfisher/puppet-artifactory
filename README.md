@@ -179,6 +179,24 @@ This module is clever enough to not replace the encrypted values Artifactory gen
 Both the `master_key` and `db_password` parameters will correctly accept `Sensitive` values and automatically redact them from logs etc.
 `Deferred` values are also supported by _this_ module, but unfortunately, if `manage_db` is set to `true`, `db_password` currently doesn't work if `Deferred` due to a bug in the `puppetlabs/postgresql` module.
 
+#### Access Configuration
+
+The `artifactory_access_setting` type can be used to configure [access](https://jfrog.com/help/r/jfrog-installation-setup-documentation/access-yaml-configuration) settings.
+
+The name of each resource should be the configuration setting in dotted notation. Set the `value` parameter to the required value.
+
+For example, enforcing two of the security related settings.
+
+```puppet
+artifactory_access_setting { 'security.password-policy.length':
+  value => 8,
+}
+
+artifactory_access_setting { 'security.authentication.ldap.referral-strategy':
+  value => 'ignore',
+}
+```
+
 ## Reference
 
 [Puppet Strings REFERENCE.md](REFERENCE.md)

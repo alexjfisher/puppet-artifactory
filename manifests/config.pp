@@ -148,4 +148,6 @@ class artifactory::config (
       changes => $changes,
     }
   }
+
+  artifactory_access_settings { "${datadir}/etc/access": }
 }
