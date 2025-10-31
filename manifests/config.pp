@@ -13,9 +13,10 @@ class artifactory::config (
   Hash                $additional_system_config = $artifactory::additional_system_config,
   Optional[String[1]] $binary_store_config_xml  = $artifactory::binary_store_config_xml,
 
-  Optional[Variant[
+  Variant[
+    Undef,
     Sensitive[Pattern[/\A(\h{32}|\h{64})\z/]],
-    Pattern[/\A(\h{32}|\h{64})\z/]]
+    Pattern[/\A(\h{32}|\h{64})\z/]
   ] $master_key = $artifactory::master_key,
 
   String[1]        $jvm_max_heap_size = $artifactory::jvm_max_heap_size,
@@ -23,19 +24,19 @@ class artifactory::config (
   Array[String[1]] $jvm_extra_args    = $artifactory::jvm_extra_args,
 
   Hash $system_properties = $artifactory::system_properties
-){
+) {
   $jfrog_home = '/opt/jfrog'
   $datadir = "${jfrog_home}/artifactory/var"
 
   $base_config = {
-    "configVersion" => 1,
-    "shared"        => {
-      "security" => undef,
-      "node"     => undef,
-      "database" => {},
-      "user"     => "artifactory",
+    'configVersion' => 1,
+    'shared'        => {
+      'security' => undef,
+      'node'     => undef,
+      'database' => {},
+      'user'     => 'artifactory',
     },
-    "access"        => undef,
+    'access'        => undef,
   }
 
   if $db_url {
@@ -50,11 +51,11 @@ class artifactory::config (
   }
 
   $db_driver = $db_type ? {
-      'postgresql' => 'org.postgresql.Driver',
-      'mariadb'    => 'org.mariadb.jdbc.Driver',
-      'mysql'      => 'com.mysql.jdbc.Driver',
-      'mssql'      => 'com.microsoft.sqlserver.jdbc.SQLServerDriver',
-      'oracle'     => 'oracle.jdbc.OracleDriver',
+    'postgresql' => 'org.postgresql.Driver',
+    'mariadb'    => 'org.mariadb.jdbc.Driver',
+    'mysql'      => 'com.mysql.jdbc.Driver',
+    'mssql'      => 'com.microsoft.sqlserver.jdbc.SQLServerDriver',
+    'oracle'     => 'oracle.jdbc.OracleDriver',
   }
 
   if $db_type == 'postgresql' {
@@ -88,9 +89,9 @@ class artifactory::config (
   if $master_key {
     file { "${datadir}/etc/security":
       ensure => directory,
-      owner   => 'artifactory',
-      group   => 'artifactory',
-      mode    => '0640',
+      owner  => 'artifactory',
+      group  => 'artifactory',
+      mode   => '0640',
     }
 
     file { $master_key_file:
@@ -109,7 +110,7 @@ class artifactory::config (
   artifactory_yaml_file { "${datadir}/etc/system.yaml":
     ensure => present,
     config => Sensitive($base_config.deep_merge(
-      {'shared' => {'database' => $db_config, 'extraJavaOpts' => $extra_java_opts }},
+      { 'shared' => { 'database' => $db_config, 'extraJavaOpts' => $extra_java_opts } },
       $additional_system_config
     )),
     owner  => 'artifactory',

@@ -71,9 +71,11 @@ class artifactory (
   Optional[Integer] $uid = undef,
   Optional[Integer] $gid = $uid,
 
-  Optional[Variant[
-    Sensitive[Pattern[/\A(\h{32}|\h{64})\z/]],
-    Pattern[/\A(\h{32}|\h{64})\z/]]
+  Optional[
+    Variant[
+      Sensitive[Pattern[/\A(\h{32}|\h{64})\z/]],
+      Pattern[/\A(\h{32}|\h{64})\z/]
+    ]
   ] $master_key = undef,
 
   Optional[String[1]] $binary_store_config_xml = undef,
@@ -83,7 +85,7 @@ class artifactory (
   Array[String[1]] $jvm_extra_args     = [],
 
   Hash $system_properties = {},
-){
+) {
   if $manage_repo {
     contain artifactory::repo
     Class['artifactory::repo'] -> Class['artifactory::install']

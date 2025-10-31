@@ -20,6 +20,6 @@ class artifactory::db (
   postgresql::server::db { $db_name:
     user     => $db_name,
     owner    => $db_name,
-    password => postgresql_password($db_name, $db_password),
+    password => postgresql::postgresql_password($db_name, $db_password),
   }
 }

@@ -1,7 +1,7 @@
 # @api private
 class artifactory::repo (
   $edition = $artifactory::edition,
-){
+) {
   $baseurl = $edition ? {
     'pro'   => 'https://releases.jfrog.io/artifactory/artifactory-pro-rpms/',
     default => 'https://releases.jfrog.io/artifactory/artifactory-rpms/',
