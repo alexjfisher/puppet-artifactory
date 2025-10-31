@@ -9,6 +9,12 @@ require 'puppet/type/file/group'
 require 'puppet/type/file/mode'
 
 Puppet::Type.newtype(:artifactory_yaml_file) do
+  @doc = <<-DOC
+    @summary
+      Used to generates the system.yaml file but replaces its content only if encrypted fields don't decrypt to strings matching the plaintext versions from `content`
+    @api private
+  DOC
+
   attr_accessor :replace_file_content
 
   ensurable do

@@ -6,6 +6,7 @@ Puppet::Type.newtype(:artifactory_access_settings) do
   @doc = <<-DOC
     @summary
       Generates a access.config.patch.yml file as needed using configuration values from `artifactory_access_setting` resources.
+    @api private
   DOC
 
   newparam(:path, namevar: true) do
