@@ -211,4 +211,6 @@ artifactory_access_setting { 'security.authentication.ldap.referral-strategy':
 
 ## Development
 
-This module was written by [Alex Fisher](https://github.com/alexjfisher) and is licensed under the Apache-2.0 License.
+This module is maintained by [Vox Pupuli](https://voxpupuli.org/).
+
+It was written by [Alex Fisher](https://github.com/alexjfisher) and is licensed under the Apache-2.0 License.
