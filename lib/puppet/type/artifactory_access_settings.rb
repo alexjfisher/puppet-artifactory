@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'yaml'
+
 Puppet::Type.newtype(:artifactory_access_settings) do
   @doc = <<-DOC
     @summary
@@ -39,19 +41,13 @@ Puppet::Type.newtype(:artifactory_access_settings) do
     "#{self[:path]}/access.config.patch.yml"
   end
 
-
   def access_settings
-    @access_settings ||= catalog.resources.map { |resource|
-      next unless resource.is_a?(Puppet::Type.type(:artifactory_access_setting))
-
-      resource
-    }.compact
+    @access_settings ||= catalog.resources.select { |resource| resource.is_a?(Puppet::Type.type(:artifactory_access_setting)) }
   end
 
   def values_to_set
-    values = access_settings.reduce({}) do |memo, res|
+    values = access_settings.each_with_object({}) do |res, memo|
       memo[res[:name]] = res[:value] if config_patch_needed?(res[:name], res[:value])
-      memo
     end
 
     debug "values to set #{values}"
@@ -60,15 +56,15 @@ Puppet::Type.newtype(:artifactory_access_settings) do
 
   def current_config
     @current_config ||= begin
-                          YAML.load_file("#{self[:path]}/access.config.latest.yml")
-                        rescue Errno::ENOENT
-                          info 'access.config.latest.yml not found. Treating as empty hash.'
-                          {}
-                        rescue StandardError => e
-                          warning "Error reading #{self[:path]}/access.config.latest.yml #{e.inspect}"
-                          # Should we raise here instead??
-                          {}
-                        end
+      YAML.load_file("#{self[:path]}/access.config.latest.yml")
+    rescue Errno::ENOENT
+      info 'access.config.latest.yml not found. Treating as empty hash.'
+      {}
+    rescue StandardError => e
+      warning "Error reading #{self[:path]}/access.config.latest.yml #{e.inspect}"
+      # Should we raise here instead??
+      {}
+    end
   end
 
   def config_patch_needed?(setting, expected)
@@ -84,25 +80,33 @@ Puppet::Type.newtype(:artifactory_access_settings) do
 
     # Artifactory seems to import Integers values and convert them to Strings.
     # If we're expecting an Integer and the config file has a String, we need to try to coerce it to an Integer before comparing
-    expected != (expected.is_a?(Integer) && actual.is_a?(String) ? (Integer(actual) rescue actual): actual)
+    expected != (if expected.is_a?(Integer) && actual.is_a?(String)
+                   begin
+                     Integer(actual)
+                   rescue StandardError
+                     actual
+                   end
+                 else
+                   actual
+                 end)
   end
 
-  def undot_keys(settings)
-    settings.each_with_object({}) do |(key, value), acc|
+  def expand_dotted_paths(settings)
+    settings.each_with_object({}) do |(key, value), result|
       *path, leaf = key.split('.')
-      path.reduce(acc) { |h, k| h[k] ||= {} }[leaf] = value
+      path.reduce(result) { |acc, elem| acc[elem] ||= {} }[leaf] = value
     end
   end
 
   def should_content
     @should_content ||= begin
-                          content = undot_keys(values_to_set)
-                          if content == {}
-                            nil
-                          else
-                            content.to_yaml
-                          end
-                        end
+      content = expand_dotted_paths(values_to_set)
+      if content == {}
+        nil
+      else
+        content.to_yaml
+      end
+    end
   end
 
   def generate
@@ -118,12 +122,14 @@ Puppet::Type.newtype(:artifactory_access_settings) do
   end
 
   def eval_generate
-    content = should_content
+    file = catalog.resource("File[#{patch_file_path}]")
 
-    catalog.resource("File[#{patch_file_path}]")[:content] = content unless content.nil?
+    if (content = should_content)
+      file[:content] = content
+    else
+      file[:ensure] = :absent
+    end
 
-    catalog.resource("File[#{patch_file_path}]")[:ensure] = :absent if content.nil?
-
-    [catalog.resource("File[#{patch_file_path}]")]
+    [file]
   end
 end

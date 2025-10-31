@@ -2,6 +2,7 @@
 
 require 'openssl'
 require 'base64'
+require 'yaml'
 
 require 'puppet/type/file/owner'
 require 'puppet/type/file/group'
@@ -22,9 +23,7 @@ Puppet::Type.newtype(:artifactory_yaml_file) do
 
   newparam(:path, namevar: true) do
     validate do |value|
-      unless Puppet::Util.absolute_path?(value, :posix)
-        raise ArgumentError, 'File paths must be fully qualified'
-      end
+      raise ArgumentError, 'File paths must be fully qualified' unless Puppet::Util.absolute_path?(value, :posix)
     end
   end
 
@@ -56,9 +55,7 @@ Puppet::Type.newtype(:artifactory_yaml_file) do
 
   newparam(:key) do
     validate do |value|
-      unless Puppet::Util.absolute_path?(value, :posix) || value.chomp =~ %r{\A(\h{32}|\h{64})\z}
-        raise ArgumentError, 'key must be an absolute path to a key file, or the raw hex key string'
-      end
+      raise ArgumentError, 'key must be an absolute path to a key file, or the raw hex key string' unless Puppet::Util.absolute_path?(value, :posix) || value.chomp =~ %r{\A(\h{32}|\h{64})\z}
     end
 
     munge do |value|
@@ -79,17 +76,17 @@ Puppet::Type.newtype(:artifactory_yaml_file) do
     munge do |value|
       current = retrieve
       target  = YAML.dump(deep_unwrap(value))
- 
+
       if current.nil? || resource[:key].nil?
         resource.replace_file_content = true
         target
       else
-        decrypted_content = deep_transform_strings(YAML.load(current), %r{\A\h{6}\.aesgcm(128|256)\.[A-Za-z0-9_-]+\z}) { |s| decrypt_string(s, resource[:key]) }
+        decrypted_content = deep_transform_strings(YAML.safe_load(current), %r{\A\h{6}\.aesgcm(128|256)\.[A-Za-z0-9_-]+\z}) { |s| decrypt_string(s, resource[:key]) }
         if decrypted_content == deep_unwrap(value)
-          debug "decrypted_content matches target state"
+          debug 'decrypted_content matches target state'
           current
         else
-          debug "decrypted_content DID NOT match target state"
+          debug 'decrypted_content DID NOT match target state'
           resource.replace_file_content = true
           target
         end
@@ -105,14 +102,14 @@ Puppet::Type.newtype(:artifactory_yaml_file) do
       end
     end
 
-    def deep_transform_strings(obj, re, &transform)
+    def deep_transform_strings(obj, regex, &transform)
       case obj
       when Hash
-        obj.each_with_object({}) { |(k, v), h| h[k] = deep_transform_strings(v, re, &transform) }
+        obj.transform_values { |v| deep_transform_strings(v, regex, &transform) }
       when Array
-        obj.map { |e| deep_transform_strings(e, re, &transform) }
+        obj.map { |e| deep_transform_strings(e, regex, &transform) }
       when String
-        re.match?(obj) ? transform.call(obj) : obj
+        regex.match?(obj) ? transform.call(obj) : obj
       else
         obj
       end
@@ -126,17 +123,17 @@ Puppet::Type.newtype(:artifactory_yaml_file) do
 
       case obj
       when Hash
-        obj.each_with_object({}) { |(k, v), h| h[k] = deep_unwrap(v) }
+        obj.transform_values { |v| deep_unwrap(v) }
       when Array
-        obj.map { |e| deep_unwrap(v) }
+        obj.map { |v| deep_unwrap(v) }
       else
         obj
       end
     end
 
     def decrypt_string(string, master_key_hex)
-      _label, alg, payload_b64 = string.split(".", 3)
-      key = [master_key_hex].pack("H*")
+      _label, alg, payload_b64 = string.split('.', 3)
+      key = [master_key_hex].pack('H*')
 
       if alg == 'aesgcm256'
         expected_key_bytesize = 32
@@ -147,24 +144,25 @@ Puppet::Type.newtype(:artifactory_yaml_file) do
       end
 
       if key.bytesize != expected_key_bytesize
-        warning "master key size did not match size used to encrypt data"
+        warning 'master key size did not match size used to encrypt data'
         return string
       end
-
 
       begin
         buf = Base64.urlsafe_decode64(payload_b64)
 
-        iv  = buf[0,12]
+        iv  = buf[0, 12]
         ct  = buf[12...-16]
-        tag = buf[-16,16]
-
+        tag = buf[-16, 16]
 
         c = OpenSSL::Cipher.new(cipher)
-        c.decrypt; c.key = key; c.iv = iv; c.auth_tag = tag
+        c.decrypt
+        c.key = key
+        c.iv = iv
+        c.auth_tag = tag
         c.update(ct) + c.final
       rescue StandardError => e
-        warning "Error decrpyting string in Artifactory yaml: #{e.inspect}"
+        warning "Error decrypting string in Artifactory yaml: #{e.inspect}"
         string
       end
     end
@@ -176,27 +174,26 @@ Puppet::Type.newtype(:artifactory_yaml_file) do
 
   def generate
     file_opts = {
-      ensure: (self[:ensure] == :absent) ? :absent : :file
+      ensure: self[:ensure] == :absent ? :absent : :file
     }
 
-    [
-      :path,
-      :owner,
-      :group,
-      :mode,
-      :show_diff
+    %i[
+      path
+      owner
+      group
+      mode
+      show_diff
     ].each do |param|
       file_opts[param] = self[param] unless self[param].nil?
-
-      excluded_metaparams = [:before, :notify, :require, :subscribe, :tag]
-
-      Puppet::Type.metaparams.each do |metaparam|
-        file_opts[metaparam] = self[metaparam] unless self[metaparam].nil? || excluded_metaparams.include?(metaparam)
-      end
     end
 
-    resources = [Puppet::Type.type(:file).new(file_opts)]
-    resources
+    excluded_metaparams = %i[before notify require subscribe tag]
+
+    Puppet::Type.metaparams.each do |metaparam|
+      file_opts[metaparam] = self[metaparam] unless self[metaparam].nil? || excluded_metaparams.include?(metaparam)
+    end
+
+    [Puppet::Type.type(:file).new(file_opts)]
   end
 
   def eval_generate
@@ -207,7 +204,7 @@ Puppet::Type.newtype(:artifactory_yaml_file) do
     [catalog.resource("File[#{self[:path]}]")]
   end
 
-  def set_sensitive_parameters(sensitive_parameters)
+  def set_sensitive_parameters(sensitive_parameters) # rubocop:disable Naming/AccessorMethodName
     if sensitive_parameters.include?(:config)
       sensitive_parameters.delete(:config)
       parameter(:config).sensitive = true
