@@ -1,6 +1,6 @@
 {
   "name": "puppet-artifactory",
-  "version": "0.1.0-rc0",
+  "version": "1.0.0",
   "author": "Vox Pupuli",
   "summary": "Puppet Artifactory module",
   "license": "Apache-2.0",
