@@ -18,7 +18,7 @@ begin
 rescue LoadError
   # only available if gem group releases is installed
 else
-  GCGConfig.user = 'alexjfisher'
+  GCGConfig.user = 'voxpupuli'
   GCGConfig.project = 'puppet-artifactory'
 end
 
